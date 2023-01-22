@@ -52,7 +52,7 @@ export default {
   },
   methods: {
 
-    inListOrder: function (floor) {
+    inListOrder: function(floor) {
       for (let i = 0; i < this.orderVisitFloor.length; i++) {
         if(this.orderVisitFloor[i] === floor) {
           return true;
@@ -61,14 +61,14 @@ export default {
       return false;
     },
 
-    addFloorList: function (floor) {
+    addFloorList: function(floor) {
       for (let i = 0; i < this.orderVisitFloor.length; i++) {
         if(this.orderVisitFloor[i] === floor) {
           return;
         }
       }
       this.orderVisitFloor.push(floor);
-      console.log(this.orderVisitFloor);
+      this.saveOrder();
       if (!this.elevatorStatusStart) {
         this.elevatorStatusStart = true;
         this.startElevator();
@@ -100,6 +100,7 @@ export default {
             this.$refs.elevator.classList.add('elevator-pause');
             clearInterval(timerId);
             this.orderVisitFloor.shift();
+            this.saveOrder();
             setTimeout(() => {
               this.$refs.elevator.classList.remove('elevator-pause');
               if (this.orderVisitFloor.length !== 0) {
@@ -109,11 +110,14 @@ export default {
                   this.$refs.elevatorIndication.classList.remove('move-down');
                 }
                 this.currentFloor = floor;
+                this.saveElevatorPosition();
                 this.startElevator();
               } else {
                 this.$refs.elevatorIndication.classList.remove('move-up');
                 this.$refs.elevatorIndication.classList.remove('move-down');
                 this.elevatorStatusStart = false;
+                this.currentFloor = floor;
+                this.saveElevatorPosition();
               }
             }, 3000);
           }
@@ -121,9 +125,17 @@ export default {
       });
     },
 
-    getData: async function () {
+    getData: async function() {
       let response = await fetch(`data.json`);
       return await response.json();
+    },
+
+    saveOrder: function() {
+      localStorage.setItem('orderFloors', this.orderVisitFloor);
+    },
+
+    saveElevatorPosition: function() {
+      localStorage.setItem('elevatorPosition', this.currentFloor);
     }
 
   },
@@ -139,6 +151,14 @@ export default {
     this.getData().then((response) => {
       for (let i = 1; i <= response.countFloor; i++) {
         this.floors.push(i);
+      }
+      if (localStorage.getItem('orderFloors')) {
+        this.orderVisitFloor = localStorage.getItem('orderFloors').split(',');
+        this.startElevator();
+      }
+      if (localStorage.getItem('elevatorPosition')) {
+        this.currentFloor = Number(localStorage.getItem('elevatorPosition'));
+        this.currentHeight = 100 / this.floors.length * (this.currentFloor - 1);
       }
     }).catch(e => console.log(e));
   },
