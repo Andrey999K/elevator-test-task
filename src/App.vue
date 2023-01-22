@@ -21,6 +21,9 @@
             </div>
           </div>
         </div>
+        <MineElevator v-for="mine in mines" :key="mine" 
+          v-bind:floors="floors"
+        />
         <div class="buttons">
             <div v-for="floor in reverseMass" :key="floor" class="buttons__item">
                 <span class="buttons__item-number">{{ floor }}</span>
@@ -39,10 +42,12 @@
 </template>
 
 <script>
+import MineElevator from '@/components/MineElevator'
 export default {
   name: 'App',
   data() {
     return {
+      mines: [],
       floors: [],
       currentFloor: 1,
       currentHeight: 0,
@@ -152,6 +157,9 @@ export default {
       for (let i = 1; i <= response.countFloor; i++) {
         this.floors.push(i);
       }
+      for (let i = 0; i < response.countMine; i++) {
+        this.mines.push(i);
+      }
       if (localStorage.getItem('orderFloors')) {
         this.orderVisitFloor = localStorage.getItem('orderFloors').split(',');
         this.startElevator();
@@ -163,6 +171,7 @@ export default {
     }).catch(e => console.log(e));
   },
   components: {
+    MineElevator
   }
 }
 </script>
