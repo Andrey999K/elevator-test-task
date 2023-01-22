@@ -2,11 +2,11 @@
   <div id="app">
     <div class="container">
         <div class="mine">
-          <div v-for="floor in floors" :key="floor" class="floor"></div>
+          <div v-for="floor in floors" :key="floor.numberFloor" class="floor"></div>
           <div class="elevator" ref="elevator"
             v-bind:style="{
               bottom: `${currentHeight}%`, 
-              height: `calc(100% / ${this.floors.length})`
+              height: `calc(100% / ${floors.length})`
             }">
             <div class="elevator__indication" ref="elevatorIndication">
               <div class="elevator__indication-direction">
@@ -25,11 +25,11 @@
           v-bind:floors="floors"
         />
         <div class="buttons">
-            <div v-for="floor in reverseMass" :key="floor" class="buttons__item">
-                <span class="buttons__item-number">{{ floor }}</span>
+            <div v-for="floor in reverseMass" :key="floor.numberFloor" class="buttons__item">
+                <span class="buttons__item-number">{{ floor.numberFloor }}</span>
                 <button @click="addFloorList(floor)"
                   class="buttons__item-button"
-                  v-bind:class="{active: inListOrder(floor)}">
+                  v-bind:class="{active: floor.buttonActive}">
                   <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <circle cx="7.5" cy="7.5" r="3.75"/>
                     <circle cx="7.5" cy="7.5" r="7"/>
@@ -68,11 +68,12 @@ export default {
 
     addFloorList: function(floor) {
       for (let i = 0; i < this.orderVisitFloor.length; i++) {
-        if(this.orderVisitFloor[i] === floor) {
+        if(this.orderVisitFloor[i] === floor.numberFloor) {
           return;
         }
       }
-      this.orderVisitFloor.push(floor);
+      this.orderVisitFloor.push(floor.numberFloor);
+      floor.buttonActive = true;
       this.saveOrder();
       if (!this.elevatorStatusStart) {
         this.elevatorStatusStart = true;
@@ -106,7 +107,9 @@ export default {
             clearInterval(timerId);
             this.orderVisitFloor.shift();
             this.saveOrder();
+            this.saveElevatorPosition(floor);
             setTimeout(() => {
+              this.floors[floor-1].buttonActive = false;
               this.$refs.elevator.classList.remove('elevator-pause');
               if (this.orderVisitFloor.length !== 0) {
                 if (this.currentFloor < floor) {
@@ -115,14 +118,12 @@ export default {
                   this.$refs.elevatorIndication.classList.remove('move-down');
                 }
                 this.currentFloor = floor;
-                this.saveElevatorPosition();
                 this.startElevator();
               } else {
                 this.$refs.elevatorIndication.classList.remove('move-up');
                 this.$refs.elevatorIndication.classList.remove('move-down');
                 this.elevatorStatusStart = false;
                 this.currentFloor = floor;
-                this.saveElevatorPosition();
               }
             }, 3000);
           }
@@ -139,8 +140,8 @@ export default {
       localStorage.setItem('orderFloors', this.orderVisitFloor);
     },
 
-    saveElevatorPosition: function() {
-      localStorage.setItem('elevatorPosition', this.currentFloor);
+    saveElevatorPosition: function(position) {
+      localStorage.setItem('elevatorPosition', position);
     }
 
   },
@@ -148,20 +149,24 @@ export default {
     reverseMass() {
       return [...this.floors].reverse();
     },
-    createFloors() {
-      return [1, 2, 3, 4, 5]
-    }
   },
   beforeMount() {
     this.getData().then((response) => {
       for (let i = 1; i <= response.countFloor; i++) {
-        this.floors.push(i);
+        this.floors.push({
+          numberFloor: i,
+          buttonActive: false
+        });
       }
       for (let i = 0; i < response.countMine; i++) {
         this.mines.push(i);
       }
       if (localStorage.getItem('orderFloors')) {
         this.orderVisitFloor = localStorage.getItem('orderFloors').split(',');
+        console.log(this.orderVisitFloor);
+        for (let i = 0; i < this.orderVisitFloor.length; i++) {
+          this.floors[this.orderVisitFloor[i] - 1].buttonActive = true;
+        }
         this.startElevator();
       }
       if (localStorage.getItem('elevatorPosition')) {
