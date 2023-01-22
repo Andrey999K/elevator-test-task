@@ -101,6 +101,7 @@ export default {
             clearInterval(timerId);
             this.orderVisitFloor.shift();
             this.saveOrder();
+            this.saveElevatorPosition(floor);
             setTimeout(() => {
               this.$refs.elevator.classList.remove('elevator-pause');
               if (this.orderVisitFloor.length !== 0) {
@@ -110,14 +111,12 @@ export default {
                   this.$refs.elevatorIndication.classList.remove('move-down');
                 }
                 this.currentFloor = floor;
-                this.saveElevatorPosition();
                 this.startElevator();
               } else {
                 this.$refs.elevatorIndication.classList.remove('move-up');
                 this.$refs.elevatorIndication.classList.remove('move-down');
                 this.elevatorStatusStart = false;
                 this.currentFloor = floor;
-                this.saveElevatorPosition();
               }
             }, 3000);
           }
@@ -134,8 +133,8 @@ export default {
       localStorage.setItem('orderFloors', this.orderVisitFloor);
     },
 
-    saveElevatorPosition: function() {
-      localStorage.setItem('elevatorPosition', this.currentFloor);
+    saveElevatorPosition: function(position) {
+      localStorage.setItem('elevatorPosition', position);
     }
 
   },
