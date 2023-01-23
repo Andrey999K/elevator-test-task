@@ -34,6 +34,7 @@ export default {
       elevatorsStatusStart: false
     }
   },
+
   methods: {
 
     // ДОБАВЛЕНИЕ ЭТАЖА В СПИСОК ПОСЕЩАЕМЫХ ЭТАЖЕЙ
@@ -48,7 +49,9 @@ export default {
         return;
       }
       this.orderVisitFloor.push(floor.numberFloor);
+      this.saveOrderData();
       floor.buttonActive = true;
+      console.log(this.mines);
     },
 
     // ПОИСК СВОБОДНЫХ ЛИФТОВ
@@ -76,30 +79,30 @@ export default {
 
     // ПЕРЕМЕЩЕНИЕ ЛИФТА НА НУЖНЫЙ ЭТАЖ
     moveFloor: function(elevator) {
-        let timerId = setInterval(() => {
-          if (elevator.currentFloor < elevator.onFloor) {
-            elevator.currentHeight += 0.25;
-          } else if (elevator.currentFloor > elevator.onFloor) {
-            elevator.currentHeight -= 0.25;
-          } else {
-            return false;
-          }
-          if (elevator.currentHeight === (Math.ceil(100 / this.floors.length * (elevator.onFloor - 1)))) {
-            elevator.stoped = true;
-            clearInterval(timerId);
-            elevator.orderVisitFloor.shift();
-            elevator.currentFloor = elevator.onFloor;
-            setTimeout(() => {
-              this.floors[elevator.onFloor-1].buttonActive = false;
-              elevator.stoped = false;
-              if (elevator.orderVisitFloor.length === 0)
-                elevator.freeElevator = true;
-              
-              
-              elevator.direction = 'stop';
-            }, 3000);
-          }
-        }, 250 / (100 / this.floors.length));
+      let timerId = setInterval(() => {
+        if (elevator.currentFloor < elevator.onFloor) {
+          elevator.currentHeight += 0.25;
+        } else if (elevator.currentFloor > elevator.onFloor) {
+          elevator.currentHeight -= 0.25;
+        } else {
+          return false;
+        }
+        if (elevator.currentHeight === (Math.ceil(100 / this.floors.length * (elevator.onFloor - 1)))) {
+          elevator.stoped = true;
+          clearInterval(timerId);
+          elevator.orderVisitFloor.shift();
+          elevator.currentFloor = elevator.onFloor;
+          this.saveData();
+          setTimeout(() => {
+            this.floors[elevator.onFloor-1].buttonActive = false;
+            elevator.stoped = false;
+            if (elevator.orderVisitFloor.length === 0)
+              elevator.freeElevator = true;
+            elevator.direction = 'stop';
+            this.saveData();
+          }, 3000);
+        }
+      }, 250 / (100 / this.floors.length));
     },
 
     // ПОЛУЧЕНИЕ ДАННЫХ ИЗ КОНФИГУРАЦИОННОГО ФАЙЛА
@@ -130,7 +133,7 @@ export default {
 
     // НЕ ДОБАВЛЯЕМ В СПИСОК ПОСЕЩАЕМЫХ ЭТАЖЕЙ, ЕСЛИ ЛИФТ УЖЕ ЕДЕТ
     // НА НУЖНЫЙ ЭТАЖ ИЛИ НАХОДИТСЯ НА НУЖНОМ ЭТАЖЕ
-    elevatorOnFloor(floor) {
+    elevatorOnFloor: function(floor) {
       for (let i = 0; i < this.mines.length; i++) {
         if (this.mines[i].currentFloor === floor && 
         this.mines[i].onFloor === floor) {
@@ -138,9 +141,74 @@ export default {
         }
       }
       return false;
+    },
+
+    // СОХРАНЕНИЕ ДАННЫХ В LocalStorage
+    saveData: function() {
+      localStorage.setItem('floors', JSON.stringify(this.floors));
+      localStorage.setItem('mines', JSON.stringify(this.mines));
+    },
+
+    // СОХРАНЕНИЕ ДАННЫХ ПОРЯДКА ПОСЕЩЕНИЯ НЕРАСПРЕДЕЛЁННЫХ ЭТАЖЕЙ
+    saveOrderData: function() {
+      localStorage.setItem('orderVisitFloor', JSON.stringify(this.orderVisitFloor));
+    },
+
+    // ЗАПОЛНЯЕМ МАССИВ ЛИФТОВ ДАННЫМИ
+    createMines: function(count, mass=false) {
+      if (mass) {
+        for (let i = 0; i < mass.length; i++) {
+          this.mines.push({
+            currentFloor: mass[i].currentFloor,
+            currentHeight: mass[i].currentHeight,
+            freeElevator: (mass[i].currentFloor === mass[i].onFloor ? true : mass[i].freeElevator),
+            direction: (mass[i].currentFloor === mass[i].onFloor ? 'stop' : mass[i].direction),
+            onFloor: mass[i].onFloor,
+            stoped: (mass[i].currentFloor === mass[i].onFloor ? false : mass[i].stoped),
+            orderVisitFloor: mass[i].orderVisitFloor
+          });
+        }
+        for (let i = 0; i < this.mines.length; i++) {
+          if (this.mines[i].direction === 'stop') {
+            this.floors[this.mines[i].currentFloor - 1].buttonActive = false;
+          }
+        }
+      } else {
+        for (let i = 0; i < count; i++) {
+          this.mines.push({
+            currentFloor: 1,
+            currentHeight: 0,
+            freeElevator: true,
+            direction: 'stop',
+            onFloor: 0,
+            stoped: false,
+            orderVisitFloor: []
+          });
+        }
+      }
+    },
+
+    // ЗАПОЛНЯЕМ МАССИВ ЭТАЖЕЙ ДАННЫМИ
+    createFloors: function(count, mass=false) {
+      if (mass) {
+        for (let i = 0; i < mass.length; i++) {
+          this.floors.push({
+            numberFloor: mass[i].numberFloor,
+            buttonActive: mass[i].buttonActive
+          });
+        }
+      } else {
+        for (let i = 1; i <= count; i++) {
+          this.floors.push({
+            numberFloor: i,
+            buttonActive: false
+          });
+        }
+      }
     }
 
   },
+
   computed: {
 
     reverseMass() {
@@ -158,6 +226,7 @@ export default {
     },
 
   },
+
   watch: {
 
     orderVisitFloor: function() {
@@ -175,25 +244,69 @@ export default {
 
   beforeMount() {
     this.getData().then((response) => {
-      for (let i = 0; i < response.countMine; i++) {
-        this.mines.push({
-          currentFloor: 1,
-          currentHeight: 0,
-          freeElevator: true,
-          direction: 'stop',
-          onFloor: 0,
-          stoped: false,
-          orderVisitFloor: []
-        });
+      if (localStorage.getItem('floors')) {
+        const floors = JSON.parse(localStorage.getItem('floors'));
+        if (floors.length === response.countFloor) {
+          this.createFloors(floors.length, floors);
+          if (localStorage.getItem('orderVisitFloor')) {
+            const orderVisitFloor = JSON.parse(localStorage.getItem('orderVisitFloor'));
+            if (orderVisitFloor.length !== 0) {
+              orderVisitFloor.forEach(item => {
+                this.orderVisitFloor.push(item);
+              });
+            }
+          }
+        } else {
+          localStorage.clear();
+        }
+      } else {
+        this.createFloors(response.countFloor);
       }
-      for (let i = 1; i <= response.countFloor; i++) {
-        this.floors.push({
-          numberFloor: i,
-          buttonActive: false
-        });
+      if (localStorage.getItem('mines')) {
+        const mines = JSON.parse(localStorage.getItem('mines'));
+        if (mines.length === response.countMine) {
+          this.createMines(mines.length, mines);
+          this.mines.forEach(mine => {
+            if (mine.currentFloor !== mine.onFloor) {
+              this.moveFloor(mine);
+            } else {
+              mine.direction = 'stop';
+            }
+          });
+        } else {
+          localStorage.clear();
+        }
+      } else {
+        this.createMines(response.countMine);
       }
-    }).catch(e => console.log(e));
+    }).catch((e) => {
+      console.log(e);
+      if (localStorage.getItem('floors')) {
+        const floors = JSON.parse(localStorage.getItem('floors'));
+        if (floors.length === 7) {
+          this.createFloors(floors.length, floors);
+        }
+      } else {
+        this.createFloors(7);
+      }
+      if (localStorage.getItem('mines')) {
+        const mines = JSON.parse(localStorage.getItem('mines'));
+        if (mines.length === 7) {
+          this.createMines(mines.length, mines);
+          this.mines.forEach(mine => {
+            if (mine.currentFloor !== mine.onFloor) {
+              this.moveFloor(mine);
+            } else {
+              mine.direction = 'stop';
+            }
+          });
+        }
+      } else {
+        this.createMines(4);
+      }
+    });
   },
+
   components: {
     MineElevator
   }
