@@ -1,28 +1,9 @@
 <template>
   <div id="app">
     <div class="container">
-        <div class="mine">
-          <div v-for="floor in floors" :key="floor.numberFloor" class="floor"></div>
-          <div class="elevator" ref="elevator"
-            v-bind:style="{
-              bottom: `${currentHeight}%`, 
-              height: `calc(100% / ${floors.length})`
-            }">
-            <div class="elevator__indication" ref="elevatorIndication">
-              <div class="elevator__indication-direction">
-                <svg class="arrow-up" width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6.56569 0.434315C6.25327 0.121895 5.74673 0.121895 5.43431 0.434315L0.343146 5.52548C0.0307262 5.8379 0.0307262 6.34443 0.343146 6.65685C0.655565 6.96927 1.1621 6.96927 1.47452 6.65685L6 2.13137L10.5255 6.65685C10.8379 6.96927 11.3444 6.96927 11.6569 6.65685C11.9693 6.34443 11.9693 5.8379 11.6569 5.52548L6.56569 0.434315ZM6.8 11L6.8 1H5.2L5.2 11H6.8Z" fill="white"/>
-                </svg>
-                <svg  class="arrow-down" width="12" height="11" viewBox="0 0 12 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M5.43431 10.5657C5.74673 10.8781 6.25327 10.8781 6.56569 10.5657L11.6569 5.47452C11.9693 5.1621 11.9693 4.65557 11.6569 4.34315C11.3444 4.03073 10.8379 4.03073 10.5255 4.34315L6 8.86863L1.47452 4.34315C1.1621 4.03073 0.655565 4.03073 0.343146 4.34315C0.0307262 4.65557 0.0307262 5.1621 0.343146 5.47452L5.43431 10.5657ZM5.2 0L5.2 10H6.8L6.8 0L5.2 0Z" fill="white"/>
-                </svg>
-              </div>
-              <span class="elevator__indication-floor" ref="elevatorIndicationFloor"></span>
-            </div>
-          </div>
-        </div>
-        <MineElevator v-for="mine in mines" :key="mine" 
+        <MineElevator v-for="(mine, index) in mines" :key="index" 
           v-bind:floors="floors"
+          v-bind:mine="mine"
         />
         <div class="buttons">
             <div v-for="floor in reverseMass" :key="floor.numberFloor" class="buttons__item">
@@ -49,129 +30,167 @@ export default {
     return {
       mines: [],
       floors: [],
-      currentFloor: 1,
-      currentHeight: 0,
       orderVisitFloor: [],
-      elevatorStatusStart: false
+      elevatorsStatusStart: false
     }
   },
   methods: {
 
-    inListOrder: function(floor) {
+    // ДОБАВЛЕНИЕ ЭТАЖА В СПИСОК ПОСЕЩАЕМЫХ ЭТАЖЕЙ
+    addFloorList: function(floor) {
       for (let i = 0; i < this.orderVisitFloor.length; i++) {
-        if(this.orderVisitFloor[i] === floor) {
+        if (this.orderVisitFloor[i] === floor.numberFloor) {
+          return;
+        }
+      }
+      console.log(this.elevatorOnFloor(floor.numberFloor));
+      if (this.elevatorOnFloor(floor.numberFloor)) {
+        return;
+      }
+      this.orderVisitFloor.push(floor.numberFloor);
+      floor.buttonActive = true;
+    },
+
+    // ПОИСК СВОБОДНЫХ ЛИФТОВ
+    findFreeElevators: function() {
+      let freeElevators = [];
+      this.mines.forEach(mine => {
+        if (mine.freeElevator) {
+          freeElevators.push(mine);
+        }
+      });
+      return freeElevators;
+    },
+
+    // ПОЛУЧЕНИЕ БЛИЖАЙШЕГО ИЗ СВОБОДНЫХ ЛИФТОВ
+    getNearestElevator: function(freeElevators, floor) {
+      let nearestElevator = freeElevators[0];
+      for (let i = 0; i < freeElevators.length - 1; i++) {
+        if (Math.abs(freeElevators[i].currentFloor - floor) > 
+          Math.abs(freeElevators[i + 1].currentFloor - floor)) {
+          nearestElevator = freeElevators[i + 1];
+        }
+      }
+      return nearestElevator;
+    },
+
+    // ПЕРЕМЕЩЕНИЕ ЛИФТА НА НУЖНЫЙ ЭТАЖ
+    moveFloor: function(elevator) {
+        let timerId = setInterval(() => {
+          if (elevator.currentFloor < elevator.onFloor) {
+            elevator.currentHeight += 0.25;
+          } else if (elevator.currentFloor > elevator.onFloor) {
+            elevator.currentHeight -= 0.25;
+          } else {
+            return false;
+          }
+          if (elevator.currentHeight === (Math.ceil(100 / this.floors.length * (elevator.onFloor - 1)))) {
+            elevator.stoped = true;
+            clearInterval(timerId);
+            elevator.orderVisitFloor.shift();
+            elevator.currentFloor = elevator.onFloor;
+            setTimeout(() => {
+              this.floors[elevator.onFloor-1].buttonActive = false;
+              elevator.stoped = false;
+              if (elevator.orderVisitFloor.length === 0)
+                elevator.freeElevator = true;
+              
+              
+              elevator.direction = 'stop';
+            }, 3000);
+          }
+        }, 250 / (100 / this.floors.length));
+    },
+
+    // ПОЛУЧЕНИЕ ДАННЫХ ИЗ КОНФИГУРАЦИОННОГО ФАЙЛА
+    getData: async function() {
+      let response = await fetch(`data.json`);
+      return await response.json();
+    },
+
+    // РАСПРЕДЕЛИТЕЛЬ ПОСЕЩАЕМЫХ ЭТАЖЕЙ ПО ЛИФТАМ
+    distributor: function() {
+      if (this.orderVisitFloor.length !== 0) {
+        if (this.findFreeElevators().length !== 0) {
+          const floorNumber = this.orderVisitFloor[0];
+          const nearestElevator = this.getNearestElevator(this.findFreeElevators(), floorNumber);
+          nearestElevator.orderVisitFloor.push(floorNumber);
+          this.orderVisitFloor.shift();
+          nearestElevator.freeElevator = false;
+          nearestElevator.onFloor = floorNumber;
+          if (nearestElevator.currentFloor < floorNumber) {
+            nearestElevator.direction = 'move-up';
+          } else {
+            nearestElevator.direction = 'move-down';
+          }
+          this.moveFloor(nearestElevator)
+        }
+      }
+    },
+
+    // НЕ ДОБАВЛЯЕМ В СПИСОК ПОСЕЩАЕМЫХ ЭТАЖЕЙ, ЕСЛИ ЛИФТ УЖЕ ЕДЕТ
+    // НА НУЖНЫЙ ЭТАЖ ИЛИ НАХОДИТСЯ НА НУЖНОМ ЭТАЖЕ
+    elevatorOnFloor(floor) {
+      for (let i = 0; i < this.mines.length; i++) {
+        if (this.mines[i].currentFloor === floor && 
+        this.mines[i].onFloor === floor) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+  },
+  computed: {
+
+    reverseMass() {
+      return [...this.floors].reverse();
+    },
+
+    // ПРОВЕРКА ЕСТЬ ЛИ СВОБОДНЫЕ ЛИФТЫ
+    elevatorFree() {
+      for (let i = 0; i < this.mines.length; i++) {
+        if (this.mines[i].freeElevator) {
           return true;
         }
       }
       return false;
     },
 
-    addFloorList: function(floor) {
-      for (let i = 0; i < this.orderVisitFloor.length; i++) {
-        if(this.orderVisitFloor[i] === floor.numberFloor) {
-          return;
-        }
+  },
+  watch: {
+
+    orderVisitFloor: function() {
+      this.distributor();
+    },
+
+    // ЕСЛИ ЕСТЬ СВОБОДНЫЕ ЛИФТЫ, РАСПРЕДЕЛЯЕМ ПО НИМ ЭТАЖИ
+    elevatorFree: function(value) {
+      if (value) {
+        this.distributor();
       }
-      this.orderVisitFloor.push(floor.numberFloor);
-      floor.buttonActive = true;
-      this.saveOrder();
-      if (!this.elevatorStatusStart) {
-        this.elevatorStatusStart = true;
-        this.startElevator();
-      }
-    },
-
-    startElevator: async function() {
-      this.moveFloor(this.orderVisitFloor[0]);
-    },
-
-    moveFloor: async function(floor) {
-      return new Promise(() => {
-        if (this.currentFloor < floor) {
-          this.$refs.elevatorIndicationFloor.textContent = floor;
-          this.$refs.elevatorIndication.classList.add('move-up');
-        } else if (this.currentFloor > floor) {
-          this.$refs.elevatorIndicationFloor.textContent = floor;
-          this.$refs.elevatorIndication.classList.add('move-down');
-        }
-        let timerId = setInterval(() => {
-          if (this.currentFloor < floor) {
-            this.currentHeight += 0.25;
-          } else if (this.currentFloor > floor) {
-            this.currentHeight -= 0.25;
-          } else {
-            return false;
-          }
-          if (this.currentHeight === (Math.ceil(100 / this.floors.length * (floor - 1)))) {
-            this.$refs.elevator.classList.add('elevator-pause');
-            clearInterval(timerId);
-            this.orderVisitFloor.shift();
-            this.saveOrder();
-            this.saveElevatorPosition(floor);
-            setTimeout(() => {
-              this.floors[floor-1].buttonActive = false;
-              this.$refs.elevator.classList.remove('elevator-pause');
-              if (this.orderVisitFloor.length !== 0) {
-                if (this.currentFloor < floor) {
-                  this.$refs.elevatorIndication.classList.remove('move-up');
-                } else if (this.currentFloor > floor) {
-                  this.$refs.elevatorIndication.classList.remove('move-down');
-                }
-                this.currentFloor = floor;
-                this.startElevator();
-              } else {
-                this.$refs.elevatorIndication.classList.remove('move-up');
-                this.$refs.elevatorIndication.classList.remove('move-down');
-                this.elevatorStatusStart = false;
-                this.currentFloor = floor;
-              }
-            }, 3000);
-          }
-        }, 250 / (100 / this.floors.length));
-      });
-    },
-
-    getData: async function() {
-      let response = await fetch(`data.json`);
-      return await response.json();
-    },
-
-    saveOrder: function() {
-      localStorage.setItem('orderFloors', this.orderVisitFloor);
-    },
-
-    saveElevatorPosition: function(position) {
-      localStorage.setItem('elevatorPosition', position);
     }
 
   },
-  computed: {
-    reverseMass() {
-      return [...this.floors].reverse();
-    },
-  },
+
   beforeMount() {
     this.getData().then((response) => {
+      for (let i = 0; i < response.countMine; i++) {
+        this.mines.push({
+          currentFloor: 1,
+          currentHeight: 0,
+          freeElevator: true,
+          direction: 'stop',
+          onFloor: 0,
+          stoped: false,
+          orderVisitFloor: []
+        });
+      }
       for (let i = 1; i <= response.countFloor; i++) {
         this.floors.push({
           numberFloor: i,
           buttonActive: false
         });
-      }
-      for (let i = 0; i < response.countMine; i++) {
-        this.mines.push(i);
-      }
-      if (localStorage.getItem('orderFloors')) {
-        this.orderVisitFloor = localStorage.getItem('orderFloors').split(',');
-        console.log(this.orderVisitFloor);
-        for (let i = 0; i < this.orderVisitFloor.length; i++) {
-          this.floors[this.orderVisitFloor[i] - 1].buttonActive = true;
-        }
-        this.startElevator();
-      }
-      if (localStorage.getItem('elevatorPosition')) {
-        this.currentFloor = Number(localStorage.getItem('elevatorPosition'));
-        this.currentHeight = 100 / this.floors.length * (this.currentFloor - 1);
       }
     }).catch(e => console.log(e));
   },
