@@ -44,14 +44,13 @@ export default {
           return;
         }
       }
-      console.log(this.elevatorOnFloor(floor.numberFloor));
       if (this.elevatorOnFloor(floor.numberFloor)) {
         return;
       }
       this.orderVisitFloor.push(floor.numberFloor);
       this.saveOrderData();
       floor.buttonActive = true;
-      console.log(this.mines);
+      localStorage.setItem('floors', JSON.stringify(this.floors));
     },
 
     // ПОИСК СВОБОДНЫХ ЛИФТОВ
@@ -93,6 +92,7 @@ export default {
           elevator.orderVisitFloor.shift();
           elevator.currentFloor = elevator.onFloor;
           this.saveData();
+          this.saveOrderData();
           setTimeout(() => {
             this.floors[elevator.onFloor-1].buttonActive = false;
             elevator.stoped = false;
@@ -180,7 +180,7 @@ export default {
             currentHeight: 0,
             freeElevator: true,
             direction: 'stop',
-            onFloor: 0,
+            onFloor: 1,
             stoped: false,
             orderVisitFloor: []
           });
@@ -254,6 +254,7 @@ export default {
               orderVisitFloor.forEach(item => {
                 this.orderVisitFloor.push(item);
               });
+              console.log(this.orderVisitFloor);
             }
           }
         } else {
